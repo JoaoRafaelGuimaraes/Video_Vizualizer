@@ -1,0 +1,14 @@
+.video-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.video-info p {
+  margin: 0;
+  font-size: 0.95rem;
+}

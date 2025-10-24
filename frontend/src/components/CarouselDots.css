@@ -1,0 +1,25 @@
+.dots-container {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #888;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.dot:hover {
+  background: #aaa;
+  transform: scale(1.2);
+}
+
+.dot.active {
+  background: #646cff;
+  width: 30px;
+  border-radius: 6px;
+}
