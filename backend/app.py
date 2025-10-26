@@ -2,7 +2,7 @@ from flask import Flask, render_template, send_from_directory, Response
 import os
 from video_func import get_minivideo, transform_into_frames
 from flask_cors import CORS
-from model_analysis import load_model, infer_batch, save_results_as_mask
+from model_analysis import load_model, infer_batch, return_results_as_mask, save_results_as_yolo_masks
 
 app = Flask(__name__)
 CORS(app)
@@ -86,6 +86,17 @@ def serve_full_video(filename):
     response.headers['Accept-Ranges'] = 'bytes'
     return response
 
+@app.route('/api/dataset/images/<video>/<image_filename>')
+def serve_dataset_image(video, image_filename):
+    # Serve frames extracted from videos for visualization/labeling
+    images_dir = os.path.join(DATA_SET_DIR, video, 'images')
+    file_path = os.path.join(images_dir, image_filename)
+    if not os.path.exists(file_path):
+        return {"error": "Imagem não encontrada"}, 404
+    response = send_from_directory(images_dir, image_filename)
+    response.headers['Content-Type'] = 'image/jpeg'
+    return response
+
 @app.route('/api/clear_cache', methods=['POST'])
 def clear_cache():
     global video_cache
@@ -94,21 +105,59 @@ def clear_cache():
 
 
 @app.route('/api/analyse_video/<filename>')
-def analyse_video(filename): #Deve inferir o vídeo com YOLO, salvando as máscaras para treinamento de futuro modelo
+def analyse_video(filename): # Deve inferir o vídeo com YOLO, salvando as máscaras para treinamento de futuro modelo
     video_path = os.path.join(VIDEO_DIR, filename)
     if not os.path.exists(video_path):
         return {"error": "Vídeo não encontrado"}, 404
-    image_dir = os.path.join(DATA_SET_DIR, 'frames', filename,'images')
-    mask_dir= os.path.join(DATA_SET_DIR, 'frames', filename,'masks')
+    image_dir = os.path.join(DATA_SET_DIR, filename,'images')
+    mask_dir= os.path.join(DATA_SET_DIR, filename,'masks')
     os.makedirs(image_dir, exist_ok=True)
     os.makedirs(mask_dir, exist_ok=True)
     transform_into_frames(video_path=video_path, output_dir=image_dir)
+    
     model = load_model()
-    results = infer_batch(model,image_paths=image_dir)
-    save_results_as_mask(results,output_dir=mask_dir)
+    # Usa padrão glob para pegar apenas imagens extraídas
+    results = infer_batch(model,image_paths=os.path.join(image_dir, '*.jpg'))
+    formatted = return_results_as_mask(results,model)
+    # Opcional: salvar máscaras/labels em formato YOLO se disponíveis
+    try:
+        save_results_as_yolo_masks(formatted,output_dir=mask_dir)
+    except Exception as e:
+        # Evita quebrar o fluxo caso o formato de máscara não esteja presente
+        print(f"Aviso: não foi possível salvar máscaras YOLO - {e}")
 
-    output_dir = os.path.join(DATA_SET_DIR, 'frames', filename)
-    return {"status": "ok", "result_dir": output_dir}
+    output_dir = os.path.join(DATA_SET_DIR, filename)
+    # Prepara frames para visualização no front-end (com URLs servíveis e detecções normalizadas)
+    frames = []
+    for item in formatted:
+        img_path = item.get('image_path')
+        if not img_path:
+            continue
+        base = os.path.splitext(os.path.basename(img_path))[0]
+        image_filename = f"{base}.jpg"
+        image_url = f"/api/dataset/images/{filename}/{image_filename}"
+        frames.append({
+            "image_name": image_filename,
+            "image_url": image_url,
+            "detections": item.get('detections', [])
+        })
 
+    return {"status": "ok", "result_dir": output_dir, "frames": frames}
+
+
+@app.route('/api/retrieve_masks/<filename>')
+def retrieve_masks(filename):
+    mask_dir = os.path.join(DATA_SET_DIR, filename,'masks')
+    
+    if not os.path.exists(mask_dir):
+        return {"error": "Diretório de máscaras não encontrado"}, 404
+    
+    masks = []
+    for mask_file in os.listdir(mask_dir):
+        if mask_file.startswith('.'):
+            continue
+        masks.append(f'/api/masks/{filename}/{mask_file}')
+    
+    return {"status": "ok", "masks": masks}
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
