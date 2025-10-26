@@ -1,13 +1,14 @@
 from flask import Flask, render_template, send_from_directory, Response
 import os
-from video_func import get_minivideo
+from video_func import get_minivideo, transform_into_frames
 from flask_cors import CORS
+from model_analysis import load_model, infer_batch, save_results_as_mask
 
 app = Flask(__name__)
 CORS(app)
 
 VIDEO_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'videos')
-
+DATA_SET_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'DATASET')
 
 video_cache = {}
 
@@ -65,7 +66,6 @@ def serve_miniature_video(filename):
     if not os.path.exists(file_path):
         return {"error": "Vídeo não encontrado"}, 404
     
-    # Retorna o arquivo com headers corretos para streaming
     response = send_from_directory(miniature_dir, filename)
     response.headers['Content-Type'] = 'video/mp4'
     response.headers['Accept-Ranges'] = 'bytes'
@@ -75,12 +75,12 @@ def serve_miniature_video(filename):
 def serve_full_video(filename):
     video_dir = VIDEO_DIR
     
-    # Verifica se o arquivo existe
+    
     file_path = os.path.join(video_dir, filename)
     if not os.path.exists(file_path):
         return {"error": "Vídeo não encontrado"}, 404
     
-    # Retorna o arquivo com headers corretos para streaming
+    
     response = send_from_directory(video_dir, filename)
     response.headers['Content-Type'] = 'video/mp4'
     response.headers['Accept-Ranges'] = 'bytes'
@@ -88,10 +88,27 @@ def serve_full_video(filename):
 
 @app.route('/api/clear_cache', methods=['POST'])
 def clear_cache():
-    """Limpa o cache de vídeos processados"""
     global video_cache
     video_cache = {}
     return {"status": "ok", "message": "Cache limpo com sucesso"}
+
+
+@app.route('/api/analyse_video/<filename>')
+def analyse_video(filename): #Deve inferir o vídeo com YOLO, salvando as máscaras para treinamento de futuro modelo
+    video_path = os.path.join(VIDEO_DIR, filename)
+    if not os.path.exists(video_path):
+        return {"error": "Vídeo não encontrado"}, 404
+    image_dir = os.path.join(DATA_SET_DIR, 'frames', filename,'images')
+    mask_dir= os.path.join(DATA_SET_DIR, 'frames', filename,'masks')
+    os.makedirs(image_dir, exist_ok=True)
+    os.makedirs(mask_dir, exist_ok=True)
+    transform_into_frames(video_path=video_path, output_dir=image_dir)
+    model = load_model()
+    results = infer_batch(model,image_paths=image_dir)
+    save_results_as_mask(results,output_dir=mask_dir)
+
+    output_dir = os.path.join(DATA_SET_DIR, 'frames', filename)
+    return {"status": "ok", "result_dir": output_dir}
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

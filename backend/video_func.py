@@ -1,5 +1,6 @@
 import os
 from moviepy.editor import VideoFileClip
+from PIL import Image
 
 def get_minivideo(video_path):
     try:
@@ -67,6 +68,29 @@ def get_minivideo(video_path):
     except Exception as e:
         print(f"Erro ao processar vídeo: {e}")
         return None
+
+
+def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 5 frames, extrai uma imagem
+    try:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        clip = VideoFileClip(video_path)
+        duration = clip.duration
+
+        for t in range(0, int(duration), frame_rate):
+            frame = clip.get_frame(t)
+            frame_filename = os.path.join(output_dir, f"frame_{t:04d}.jpg")
+            img = Image.fromarray(frame)
+            img.save(frame_filename)
+
+        clip.close()
+        print(f"✓ Frames extraídos para: {output_dir}")
+
+    except Exception as e:
+        print(f"Erro ao extrair frames: {e}")
+
+
 
 
 if __name__ == "__main__":
