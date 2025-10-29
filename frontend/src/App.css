@@ -5,3 +5,14 @@
   text-align: center;
 }
 
+.app-container {
+  display: flex;
+  text-align: left;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding: 20px;
+  width: calc(100vw - 240px);
+}
+

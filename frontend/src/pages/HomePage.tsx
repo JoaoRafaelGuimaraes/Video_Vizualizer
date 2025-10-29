@@ -43,7 +43,7 @@ function HomePage() {
       <VideoCarousel videos={videos} />
 
       <button className="reload-button" onClick={refetch}>
-        🔄 Recarregar Vídeos
+        🔄 Recarregar
       </button>
     </div>
   )

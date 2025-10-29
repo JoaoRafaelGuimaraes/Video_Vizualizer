@@ -70,11 +70,16 @@ def get_minivideo(video_path):
         return None
 
 
-def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 5 frames, extrai uma imagem
+def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 10 frames, extrai uma imagem
     try:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-
+        else:
+            existing_files = os.listdir(output_dir)
+            if existing_files:
+                print(f"Frames já extraídos em: {output_dir}")
+                return True
+        
         clip = VideoFileClip(video_path)
         duration = clip.duration
 
@@ -85,10 +90,13 @@ def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 5 fram
             img.save(frame_filename)
 
         clip.close()
-        print(f"✓ Frames extraídos para: {output_dir}")
+        print(f"Frames extraídos para: {output_dir}")
+        return True
 
     except Exception as e:
         print(f"Erro ao extrair frames: {e}")
+        return False
+
 
 
 

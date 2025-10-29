@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { useVideos } from '../context/VideosContext'
 import { videoAPI } from '../services/api'
 import './FullVideoPage.css'
@@ -7,6 +8,10 @@ function FullVideoPage() {
   const { videoIndex } = useParams<{ videoIndex: string }>()
   const navigate = useNavigate()
   const { videos, loading } = useVideos()
+  const [analysing, setAnalysing] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  
 
   if (loading) {
     return (
@@ -95,8 +100,51 @@ function FullVideoPage() {
               </span>
             </div>
           </div>
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              className="view-full-button"
+              disabled={analysing}
+              onClick={async () => {
+                setAnalysisError(null)
+                setAnalysing(true)
+                try {
+                  // Backend expects filename; derive from full_video_url: /api/videos/<filename>
+                  const parts = video.full_video_url.split('/')
+                  const filenameEnc = parts[parts.length - 1]
+                  const filename = decodeURIComponent(filenameEnc)
+                  const res = await videoAPI.transformVideoToFrames(filename)
+                  if (res.status !== 'ok') throw new Error('Falha ao transformar vídeo em frames')
+                  setSuccessMessage('Frames adicionados ao Dataset com sucesso! Vá até a página Rótulos para visualizar.')
+                  setTimeout(() => setSuccessMessage(null), 3000)
+                  // Optional: navigate to Rótulos após sucesso
+                  // navigate('/rotulos')
+                } catch (err: any) {
+                  console.error('Erro ao transformar vídeo em frames:', err)
+                  setAnalysisError(err?.message || 'Erro ao transformar vídeo em frames')
+                } finally {
+                  setAnalysing(false)
+                }
+              }}
+            >
+              ➕ Adicionar Frames ao Dataset
+            </button>
+            {analysing && (
+              <div className="status-banner processing">
+                <span className="loader" />
+                <span>Processando frames… aguarde</span>
+              </div>
+            )}
+            {successMessage && (
+              <div className="status-banner success">{successMessage}</div>
+            )}
+            {analysisError && (
+              <div className="status-banner error">{analysisError}</div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Após adicionar frames ao dataset, visualize-os na página Rótulos */}
     </div>
   )
 }
