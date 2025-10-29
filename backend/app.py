@@ -4,6 +4,7 @@ from video_func import get_minivideo, transform_into_frames
 from flask_cors import CORS
 from model_analysis import load_model, infer_image
 import mimetypes
+import ast
 
 app = Flask(__name__)
 CORS(app)
@@ -147,6 +148,44 @@ def get_dataset_video_frames(video_name):
     return {"status": "ok", "frames": frames}
 
 
+@app.route('/api/analyse_image/get_classes')
+def get_classes():
+    try:
+        file_path = os.path.join(os.path.dirname(__file__), 'models', 'classes.txt')
+        with open(file_path, 'r', encoding='utf-8') as f:
+            raw = f.read().strip()
+
+        if not raw:
+            return {"status": "ok", "classes": []}
+
+        try:
+            parsed = ast.literal_eval(raw)
+        except Exception:
+            parsed = None
+
+        if isinstance(parsed, dict):
+            classes = [str(name) for _, name in sorted(parsed.items(), key=lambda item: item[0])]
+        elif isinstance(parsed, (list, tuple)):
+            classes = [str(name) for name in parsed]
+        else:
+            cleaned = []
+            for line in raw.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if ':' in line:
+                    line = line.split(':', 1)[1].strip()
+                line = line.strip(',').strip("\"'")
+                if line:
+                    cleaned.append(line)
+            classes = cleaned
+
+        preview = classes[:5]
+        print('Classes carregadas:', preview, '...' if len(classes) > 5 else '')
+        return {"status": "ok", "classes": classes}
+    except Exception as exc:
+        print('Erro ao carregar classes:', exc)
+        return {"status": "error", "error": str(exc)}, 500
 
 if __name__ == '__main__':
     app.run(debug = True,host='0.0.0.0', port=5000)
