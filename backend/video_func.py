@@ -1,5 +1,5 @@
 import os
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 from PIL import Image
 
 def get_minivideo(video_path):
@@ -38,7 +38,7 @@ def get_minivideo(video_path):
         resolution = clip.size
         
         mini_duration = min(5, duration)  
-        mini_clip = clip.subclip(0, mini_duration)
+        mini_clip = clip.subclipped(0, mini_duration)
         mini_video_fps = 2 
 
        
@@ -70,25 +70,38 @@ def get_minivideo(video_path):
         return None
 
 
-def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 5 frames, extrai uma imagem
+def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 10 frames, extrai uma imagem
     try:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-
+        else:
+            existing_files = os.listdir(output_dir)
+            if existing_files:
+                print(f"Frames já extraídos em: {output_dir}")
+                return True
+        
         clip = VideoFileClip(video_path)
         duration = clip.duration
 
         for t in range(0, int(duration), frame_rate):
             frame = clip.get_frame(t)
+            if t // 3 == 0: #pega a camera direita
+                frame = frame[:, frame.shape[1]/2:]
+            else: #pega a camera esquerda
+                frame = frame[:, :frame.shape[1]/2]
+
             frame_filename = os.path.join(output_dir, f"frame_{t:04d}.jpg")
             img = Image.fromarray(frame)
             img.save(frame_filename)
 
         clip.close()
-        print(f"✓ Frames extraídos para: {output_dir}")
+        print(f"Frames extraídos para: {output_dir}")
+        return True
 
     except Exception as e:
         print(f"Erro ao extrair frames: {e}")
+        return False
+
 
 
 

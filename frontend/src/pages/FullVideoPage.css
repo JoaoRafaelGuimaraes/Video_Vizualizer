@@ -111,3 +111,56 @@
     grid-template-columns: 1fr;
   }
 }
+.full-image-wrapper img.full-video-player {
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+/* Status banners */
+.status-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  animation: slideFade 0.3s ease-out;
+}
+
+.status-banner.success {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.4);
+}
+
+.status-banner.error {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+
+.status-banner.processing {
+  background: rgba(100, 108, 255, 0.12);
+  color: #646cff;
+  border: 1px solid rgba(100, 108, 255, 0.35);
+}
+
+/* Simple spinner */
+.loader {
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
