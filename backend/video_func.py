@@ -1,5 +1,5 @@
 import os
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 from PIL import Image
 
 def get_minivideo(video_path):
@@ -38,7 +38,7 @@ def get_minivideo(video_path):
         resolution = clip.size
         
         mini_duration = min(5, duration)  
-        mini_clip = clip.subclip(0, mini_duration)
+        mini_clip = clip.subclipped(0, mini_duration)
         mini_video_fps = 2 
 
        

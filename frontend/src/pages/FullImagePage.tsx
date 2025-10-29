@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL, videoAPI } from '../services/api';
 import './FullImagePage.css';
 
 interface Detection {
@@ -53,7 +54,7 @@ const FullImagePage: React.FC = () => {
     return <div>Imagem não encontrada.</div>;
   }
 
-  const imageUrl = `http://localhost:5000/api/dataset/images/${videoName}/${frame}`;
+  const imageUrl = videoAPI.getDatasetImageUrl(`/api/dataset/images/${videoName}/${frame}`);
 
   const handleAnalyse = async () => {
     setAnalysisError(null);
@@ -61,7 +62,7 @@ const FullImagePage: React.FC = () => {
     // keep any user-added boxes; we'll merge model ones by replacing previous model results
     try {
       const response = await fetch(
-        `http://localhost:5000/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}`
+        `${API_BASE_URL}/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}`
       );
       if (!response.ok) {
         throw new Error('Erro ao analisar imagem');

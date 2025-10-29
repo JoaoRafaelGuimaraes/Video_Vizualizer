@@ -26,7 +26,7 @@ def infer_image(model, image_path):
     img = cv2.imread(image_path)
     results = model(img)
     detections = results[0].boxes.data.tolist()  
-    print('Detections raw:', detections)
+    # print('Detections raw:', detections)
     
     detections_final = {}
     formatted_detections = []
