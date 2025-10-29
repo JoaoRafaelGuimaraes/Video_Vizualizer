@@ -55,7 +55,7 @@ const RotulosPage: React.FC = () => {
             {frames.map((frame) => (
               <Link key={frame} to={`/rotulos/${selectedDataset}/${frame}`}>
                 <img
-                  src={`http://localhost:5000/api/dataset/images/${selectedDataset}/${frame}`}
+                  src={videoAPI.getDatasetImageUrl(`/api/dataset/images/${selectedDataset}/${frame}`)}
                   alt={frame}
                   className="carousel-image"
                 />

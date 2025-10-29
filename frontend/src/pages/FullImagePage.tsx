@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL, videoAPI } from '../services/api';
 import './FullImagePage.css';
 
 interface Detection {
@@ -27,14 +28,25 @@ type Box = {
   source: 'model' | 'user';
 };
 
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const HISTORY_LIMIT = 50;
+
 const FullImagePage: React.FC = () => {
   const { videoName, frame } = useParams<{ videoName: string; frame: string }>();
   const navigate = useNavigate();
   const [analysing, setAnalysing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [zoom, setZoom] = useState(1);
+  const minZoom = 0.5;
+  const maxZoom = 3;
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [activeIds, setActiveIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panning, setPanning] = useState<null | { startMouse: { x: number; y: number }; startPan: { x: number; y: number } }>(
+    null
+  );
+  const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [overlaySize, setOverlaySize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -48,12 +60,62 @@ const FullImagePage: React.FC = () => {
         startBox: Box;
       }
   >(null);
+  const [history, setHistory] = useState<Box[][]>([]);
+  const suspendHistory = useRef(false);
+  const boxesRef = useRef<Box[]>([]);
+  const historyRef = useRef<Box[][]>([]);
 
   if (!videoName || !frame) {
     return <div>Imagem não encontrada.</div>;
   }
 
-  const imageUrl = `http://localhost:5000/api/dataset/images/${videoName}/${frame}`;
+  const imageUrl = videoAPI.getDatasetImageUrl(`/api/dataset/images/${videoName}/${frame}`);
+
+  const updateOverlaySize = useCallback(() => {
+    if (!overlayRef.current) return;
+    const rect = overlayRef.current.getBoundingClientRect();
+    setOverlaySize({ width: rect.width, height: rect.height });
+  }, []);
+
+  const pushHistory = useCallback((snapshot: Box[]) => {
+    if (suspendHistory.current) return;
+    const cloned = snapshot.map((box) => ({ ...box }));
+    setHistory((prev) => {
+      if (cloned.length === 0 && prev.length === 0) return prev;
+      const next = prev.length >= HISTORY_LIMIT ? [...prev.slice(1), cloned] : [...prev, cloned];
+      return next;
+    });
+  }, []);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    const rect = containerRef.current?.getBoundingClientRect();
+    const originX = rect ? e.clientX - rect.left : 0;
+    const originY = rect ? e.clientY - rect.top : 0;
+    setZoom((prevZoom) => {
+      const nextZoom = clamp(prevZoom * factor, minZoom, maxZoom);
+      if (nextZoom === prevZoom) return prevZoom;
+      if (rect) {
+        setPan((prevPan) => {
+          const worldX = (originX - prevPan.x) / prevZoom;
+          const worldY = (originY - prevPan.y) / prevZoom;
+          return {
+            x: originX - worldX * nextZoom,
+            y: originY - worldY * nextZoom,
+          };
+        });
+      }
+      return nextZoom;
+    });
+  };
+
+  const resetView = useCallback(() => {
+    setPan({ x: 0, y: 0 });
+    setZoom(1);
+    setPanning(null);
+  }, []);
 
   const handleAnalyse = async () => {
     setAnalysisError(null);
@@ -61,7 +123,7 @@ const FullImagePage: React.FC = () => {
     // keep any user-added boxes; we'll merge model ones by replacing previous model results
     try {
       const response = await fetch(
-        `http://localhost:5000/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}`
+        `${API_BASE_URL}/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}`
       );
       if (!response.ok) {
         throw new Error('Erro ao analisar imagem');
@@ -89,6 +151,7 @@ const FullImagePage: React.FC = () => {
 
       // Remove previous model boxes and append new ones, keep user-created
       setBoxes((prev) => {
+        pushHistory(prev);
         const userOnly = prev.filter((b) => b.source !== 'model');
         return [...userOnly, ...modelBoxes];
       });
@@ -102,16 +165,31 @@ const FullImagePage: React.FC = () => {
 
   // overlay sizing
   useEffect(() => {
-    const updateSize = () => {
-      if (!overlayRef.current) return;
-      setOverlaySize({
-        width: overlayRef.current.clientWidth,
-        height: overlayRef.current.clientHeight,
-      });
+    updateOverlaySize();
+    window.addEventListener('resize', updateOverlaySize);
+    return () => window.removeEventListener('resize', updateOverlaySize);
+  }, [updateOverlaySize]);
+
+  useEffect(() => {
+    updateOverlaySize();
+  }, [zoom, updateOverlaySize]);
+
+  useEffect(() => {
+    boxesRef.current = boxes;
+  }, [boxes]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  useEffect(() => {
+    const handleWindowMouseUp = (evt: MouseEvent) => {
+      if (evt.button === 1) {
+        setPanning(null);
+      }
     };
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    return () => window.removeEventListener('mouseup', handleWindowMouseUp);
   }, []);
 
   const getRelPos = (e: React.MouseEvent) => {
@@ -151,7 +229,8 @@ const FullImagePage: React.FC = () => {
     };
     const px = p.x * width;
     const py = p.y * height;
-    const within = (pt: { X: number; Y: number }) => Math.abs(px - pt.X) <= handleSizePx && Math.abs(py - pt.Y) <= handleSizePx;
+    const tolerance = handleSizePx * zoom;
+    const within = (pt: { X: number; Y: number }) => Math.abs(px - pt.X) <= tolerance && Math.abs(py - pt.Y) <= tolerance;
     for (const k of ['nw', 'ne', 'sw', 'se'] as const) if (within(corners[k])) return { hit: true, handle: k };
     for (const k of ['n', 's', 'w', 'e'] as const) if (within(edges[k])) return { hit: true, handle: k };
     return { hit: false };
@@ -159,6 +238,11 @@ const FullImagePage: React.FC = () => {
 
   const onOverlayMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (e.button === 1) {
+      setPanning({ startMouse: { x: e.clientX, y: e.clientY }, startPan: { ...pan } });
+      return;
+    }
+    if (e.button !== 0) return;
     const pos = getRelPos(e);
     // if clicked on selected box's handle, start resize
     if (selectedId) {
@@ -166,11 +250,13 @@ const FullImagePage: React.FC = () => {
       if (sel) {
         const hit = nearHandle(pos, sel);
         if (hit.hit && hit.handle) {
+          pushHistory(boxesRef.current);
           setDragging({ mode: 'resize', handle: hit.handle, startMouse: pos, startBox: { ...sel } });
           return;
         }
         // if inside selected box, start move
         if (pointInBox(pos, sel)) {
+          pushHistory(boxesRef.current);
           setDragging({ mode: 'move', startMouse: pos, startBox: { ...sel } });
           return;
         }
@@ -188,6 +274,13 @@ const FullImagePage: React.FC = () => {
   };
 
   const onOverlayMouseMove = (e: React.MouseEvent) => {
+    if (panning) {
+      e.preventDefault();
+      const dx = e.clientX - panning.startMouse.x;
+      const dy = e.clientY - panning.startMouse.y;
+      setPan({ x: panning.startPan.x + dx, y: panning.startPan.y + dy });
+      return;
+    }
     const pos = getRelPos(e);
     if (drawing) {
       setDrawing({ ...drawing, curX: pos.x, curY: pos.y });
@@ -222,6 +315,11 @@ const FullImagePage: React.FC = () => {
   };
 
   const onOverlayMouseUp = (e: React.MouseEvent) => {
+    if (panning && e.button === 1) {
+      setPanning(null);
+      return;
+    }
+    if (e.button !== 0) return;
     const pos = getRelPos(e);
     if (drawing) {
       const n = normBox(drawing.startX, drawing.startY, pos.x, pos.y);
@@ -233,7 +331,10 @@ const FullImagePage: React.FC = () => {
           class_name: 'objeto',
           source: 'user',
         };
-        setBoxes((prev) => prev.concat(newBox));
+        setBoxes((prev) => {
+          pushHistory(prev);
+          return prev.concat(newBox);
+        });
         setSelectedId(newBox.id);
       }
       setDrawing(null);
@@ -243,16 +344,61 @@ const FullImagePage: React.FC = () => {
 
   const totalModel = useMemo(() => boxes.filter((b) => b.source === 'model').length, [boxes]);
   const totalUser = useMemo(() => boxes.filter((b) => b.source === 'user').length, [boxes]);
+  const zoomPercent = useMemo(() => Math.round(zoom * 100), [zoom]);
 
-  const updateLabel = (id: string, newText: string) => {
-    setBoxes((prev) => prev.map((b) => (b.id === id ? { ...b, class_name: newText } : b)));
-  };
+  const updateLabel = useCallback(
+    (id: string, newText: string) => {
+      setBoxes((prev) => {
+        const idx = prev.findIndex((b) => b.id === id);
+        if (idx === -1) return prev;
+        if (prev[idx].class_name === newText) return prev;
+        pushHistory(prev);
+        return prev.map((b) => (b.id === id ? { ...b, class_name: newText } : b));
+      });
+    },
+    [pushHistory]
+  );
 
-  const deleteBox = (id: string) => {
-    setBoxes((prev) => prev.filter((b) => b.id !== id));
-    setActiveIds((prev) => prev.filter((x) => x !== id));
-    setSelectedId((cur) => (cur === id ? null : cur));
-  };
+  const deleteBox = useCallback(
+    (id: string) => {
+      let removed = false;
+      setBoxes((prev) => {
+        if (!prev.some((b) => b.id === id)) return prev;
+        pushHistory(prev);
+        removed = true;
+        return prev.filter((b) => b.id !== id);
+      });
+      if (removed) {
+        setActiveIds((prev) => prev.filter((x) => x !== id));
+        setSelectedId((cur) => (cur === id ? null : cur));
+      }
+    },
+    [pushHistory]
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (evt: KeyboardEvent) => {
+      if (evt.key === 'Delete' && selectedId) {
+        evt.preventDefault();
+        deleteBox(selectedId);
+      }
+      if ((evt.ctrlKey || evt.metaKey) && (evt.key === 'z' || evt.key === 'Z')) {
+        if (historyRef.current.length === 0) return;
+        evt.preventDefault();
+        const snapshot = historyRef.current[historyRef.current.length - 1];
+        suspendHistory.current = true;
+        setBoxes(snapshot.map((box) => ({ ...box })));
+        setActiveIds((ids) => ids.filter((id) => snapshot.some((box) => box.id === id)));
+        setSelectedId(null);
+        setHistory((prev) => prev.slice(0, -1));
+        setTimeout(() => {
+          suspendHistory.current = false;
+        }, 0);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId, deleteBox]);
 
   return (
     <div className="full-image-page">
@@ -264,79 +410,91 @@ const FullImagePage: React.FC = () => {
       </div>
 
       <div className="image-container-wrapper">
-        <div className="image-container">
-          <img ref={imgRef} src={imageUrl} alt={`Frame ${frame} de ${videoName}`} onLoad={() => {
-            // sync overlay size after image loads
-            if (overlayRef.current) {
-              setOverlaySize({
-                width: overlayRef.current.clientWidth,
-                height: overlayRef.current.clientHeight,
-              });
-            }
-          }} />
+        <div ref={containerRef} className="image-container" onWheel={handleWheel} style={{ overflow: 'hidden' }}>
           <div
-            ref={overlayRef}
-            className="draw-overlay"
-            onMouseDown={onOverlayMouseDown}
-            onMouseMove={onOverlayMouseMove}
-            onMouseUp={onOverlayMouseUp}
+            className="zoom-stage"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transformOrigin: 'top left',
+              position: 'relative',
+              display: 'inline-block',
+            }}
           >
-            <svg width="100%" height="100%">
-              {/* existing boxes */}
-              {boxes.map((b) => {
-                const x = b.x1 * 100;
-                const y = b.y1 * 100;
-                const w = (b.x2 - b.x1) * 100;
-                const h = (b.y2 - b.y1) * 100;
-                const selected = selectedId === b.id;
-                const isActive = activeIds.includes(b.id);
-                return (
-                  <g key={b.id} className={`box-group ${selected ? 'selected' : ''} ${b.source}`}>
-                    <rect
-                      x={`${x}%`}
-                      y={`${y}%`}
-                      width={`${w}%`}
-                      height={`${h}%`}
-                      className={`box-rect ${isActive ? 'active' : ''}`}
-                    />
-                    {/* label bubble */}
-                    <text x={`${x}%`} y={`${y}%`} className={`box-label ${b.source}`}>
-                      {b.class_name}
-                    </text>
-                    {/* resize handles when selected */}
-                    {selected && overlaySize.width > 0 && overlaySize.height > 0 && (
-                      <>
-                        {([['nw', b.x1, b.y1], ['ne', b.x2, b.y1], ['sw', b.x1, b.y2], ['se', b.x2, b.y2], ['n', (b.x1 + b.x2) / 2, b.y1], ['s', (b.x1 + b.x2) / 2, b.y2], ['w', b.x1, (b.y1 + b.y2) / 2], ['e', b.x2, (b.y1 + b.y2) / 2]] as const).map(
-                          ([key, hx, hy]) => (
-                            <rect
-                              key={key}
-                              x={`${(hx * 100)}%`}
-                              y={`${(hy * 100)}%`}
-                              width={handleSizePx}
-                              height={handleSizePx}
-                              className="box-handle"
-                              transform={`translate(-${handleSizePx / 2}, -${handleSizePx / 2})`}
-                            />
-                          )
-                        )}
-                      </>
-                    )}
-                  </g>
-                );
-              })}
-              {/* drawing ghost */}
-              {drawing && (
-                (() => {
-                  const n = normBox(drawing.startX, drawing.startY, drawing.curX, drawing.curY);
-                  const x = n.x1 * 100;
-                  const y = n.y1 * 100;
-                  const w = (n.x2 - n.x1) * 100;
-                  const h = (n.y2 - n.y1) * 100;
-                  return <rect x={`${x}%`} y={`${y}%`} width={`${w}%`} height={`${h}%`} className="anno-ghost-svg" />;
-                })()
-              )}
-            </svg>
+            <img ref={imgRef} src={imageUrl} alt={`Frame ${frame} de ${videoName}`} onLoad={updateOverlaySize} />
+            <div
+              ref={overlayRef}
+              className="draw-overlay"
+              onMouseDown={onOverlayMouseDown}
+              onMouseMove={onOverlayMouseMove}
+              onMouseUp={onOverlayMouseUp}
+              style={{ cursor: panning ? 'grabbing' : 'crosshair' }}
+            >
+              <svg width="100%" height="100%">
+                {/* existing boxes */}
+                {boxes.map((b) => {
+                  const x = b.x1 * 100;
+                  const y = b.y1 * 100;
+                  const w = (b.x2 - b.x1) * 100;
+                  const h = (b.y2 - b.y1) * 100;
+                  const selected = selectedId === b.id;
+                  const isActive = activeIds.includes(b.id);
+                  return (
+                    <g key={b.id} className={`box-group ${selected ? 'selected' : ''} ${b.source}`}>
+                      <rect
+                        x={`${x}%`}
+                        y={`${y}%`}
+                        width={`${w}%`}
+                        height={`${h}%`}
+                        className={`box-rect ${isActive ? 'active' : ''}`}
+                      />
+                      {/* label bubble */}
+                      <text x={`${x}%`} y={`${y}%`} className={`box-label ${b.source}`}>
+                        {b.class_name}
+                      </text>
+                      {/* resize handles when selected */}
+                      {selected && overlaySize.width > 0 && overlaySize.height > 0 && (
+                        <>
+                          {([['nw', b.x1, b.y1], ['ne', b.x2, b.y1], ['sw', b.x1, b.y2], ['se', b.x2, b.y2], ['n', (b.x1 + b.x2) / 2, b.y1], ['s', (b.x1 + b.x2) / 2, b.y2], ['w', b.x1, (b.y1 + b.y2) / 2], ['e', b.x2, (b.y1 + b.y2) / 2]] as const).map(
+                            ([key, hx, hy]) => (
+                              <rect
+                                key={key}
+                                x={`${hx * 100}%`}
+                                y={`${hy * 100}%`}
+                                width={handleSizePx}
+                                height={handleSizePx}
+                                className="box-handle"
+                                transform={`translate(-${handleSizePx / 2}, -${handleSizePx / 2})`}
+                              />
+                            )
+                          )}
+                        </>
+                      )}
+                    </g>
+                  );
+                })}
+                {/* drawing ghost */}
+                {drawing && (
+                  (() => {
+                    const n = normBox(drawing.startX, drawing.startY, drawing.curX, drawing.curY);
+                    const x = n.x1 * 100;
+                    const y = n.y1 * 100;
+                    const w = (n.x2 - n.x1) * 100;
+                    const h = (n.y2 - n.y1) * 100;
+                    return <rect x={`${x}%`} y={`${y}%`} width={`${w}%`} height={`${h}%`} className="anno-ghost-svg" />;
+                  })()
+                )}
+              </svg>
+            </div>
           </div>
+          <button
+            type="button"
+            className="reset-view-icon"
+            onClick={resetView}
+            title="Resetar visão"
+            aria-label="Resetar visão"
+          >
+            ↺
+          </button>
         </div>
       </div>
 
@@ -356,8 +514,10 @@ const FullImagePage: React.FC = () => {
         </div>
         <div className="detections-summary">
           <p>
-            <strong>{totalModel}</strong> objeto(s) do modelo • <strong>{totalUser}</strong> criado(s) pelo usuário
+            <strong>{totalModel}</strong> objeto(s) do modelo • <strong>{totalUser}</strong> criado(s) pelo usuário •{' '}
+            <strong>{zoomPercent}%</strong> zoom
           </p>
+          <p className="zoom-hint">Segure Shift e use o scroll para aplicar zoom. Clique com o botão do meio para arrastar. Use Ctrl+Z para desfazer.</p>
         </div>
 
         {/* Editable list */}

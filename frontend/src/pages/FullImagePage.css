@@ -49,6 +49,11 @@
   max-width: 90%;
   max-height: 70vh;
   display: inline-block;
+  overflow: hidden;
+}
+
+.zoom-stage {
+  will-change: transform;
 }
 
 /* Annotation renders an <img> internally */
@@ -184,6 +189,43 @@
   margin: 0;
   color: #2ecc71;
   font-weight: 600;
+}
+
+.zoom-hint {
+  margin-top: 0.35rem;
+  color: #8fdba8;
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
+.reset-view-icon {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.reset-view-icon:hover {
+  background: rgba(100, 108, 255, 0.6);
+  box-shadow: 0 6px 14px rgba(100, 108, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.reset-view-icon:active {
+  transform: scale(0.95);
 }
 
 /* Annotations list */

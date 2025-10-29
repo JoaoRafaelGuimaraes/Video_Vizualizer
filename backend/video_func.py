@@ -1,5 +1,5 @@
 import os
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 from PIL import Image
 
 def get_minivideo(video_path):
@@ -38,7 +38,7 @@ def get_minivideo(video_path):
         resolution = clip.size
         
         mini_duration = min(5, duration)  
-        mini_clip = clip.subclip(0, mini_duration)
+        mini_clip = clip.subclipped(0, mini_duration)
         mini_video_fps = 2 
 
        
@@ -85,6 +85,11 @@ def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 10 fra
 
         for t in range(0, int(duration), frame_rate):
             frame = clip.get_frame(t)
+            if t // 3 == 0: #pega a camera direita
+                frame = frame[:, frame.shape[1]/2:]
+            else: #pega a camera esquerda
+                frame = frame[:, :frame.shape[1]/2]
+
             frame_filename = os.path.join(output_dir, f"frame_{t:04d}.jpg")
             img = Image.fromarray(frame)
             img.save(frame_filename)
