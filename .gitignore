@@ -2,3 +2,5 @@ videos/
 venv/
 sync.sh
 start-tmux.sh
+DATASET
+copy_videos.sh
