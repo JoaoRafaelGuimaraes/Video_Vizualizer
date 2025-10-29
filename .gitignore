@@ -2,5 +2,4 @@ videos/
 venv/
 sync.sh
 start-tmux.sh
-.env
 DATASET/
