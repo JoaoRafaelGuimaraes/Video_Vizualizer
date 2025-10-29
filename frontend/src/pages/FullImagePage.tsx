@@ -43,6 +43,10 @@ const FullImagePage: React.FC = () => {
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [activeIds, setActiveIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pickerBoxId, setPickerBoxId] = useState<string | null>(null);
+  const [classes, setClasses] = useState<string[]>([]);
+  const [classesError, setClassesError] = useState<string | null>(null);
+  const [classesLoading, setClassesLoading] = useState(false);
   const [panning, setPanning] = useState<null | { startMouse: { x: number; y: number }; startPan: { x: number; y: number } }>(
     null
   );
@@ -175,6 +179,30 @@ const FullImagePage: React.FC = () => {
   }, [zoom, updateOverlaySize]);
 
   useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        setClassesLoading(true);
+        setClassesError(null);
+        const response = await fetch(`${API_BASE_URL}/api/analyse_image/get_classes`);
+        if (!response.ok) {
+          throw new Error('Falha ao carregar classes');
+        }
+        const data = await response.json();
+        if (data.status !== 'ok' || !Array.isArray(data.classes)) {
+          throw new Error('Resposta inválida ao carregar classes');
+        }
+        setClasses(data.classes);
+      } catch (err: any) {
+        console.error('Erro ao buscar classes:', err);
+        setClassesError(err?.message || 'Erro ao carregar classes');
+      } finally {
+        setClassesLoading(false);
+      }
+    };
+    fetchClasses();
+  }, []);
+
+  useEffect(() => {
     boxesRef.current = boxes;
   }, [boxes]);
 
@@ -266,10 +294,12 @@ const FullImagePage: React.FC = () => {
     const hitBox = [...boxes].reverse().find((b) => pointInBox(pos, b));
     if (hitBox) {
       setSelectedId(hitBox.id);
+      setPickerBoxId(hitBox.id);
       return;
     }
     // otherwise start drawing new box
     setSelectedId(null);
+    setPickerBoxId(null);
     setDrawing({ startX: pos.x, startY: pos.y, curX: pos.x, curY: pos.y });
   };
 
@@ -328,7 +358,7 @@ const FullImagePage: React.FC = () => {
         const newBox: Box = {
           id: `user-${Math.random().toString(36).slice(2, 9)}`,
           ...n,
-          class_name: 'objeto',
+          class_name: '',
           source: 'user',
         };
         setBoxes((prev) => {
@@ -336,6 +366,7 @@ const FullImagePage: React.FC = () => {
           return prev.concat(newBox);
         });
         setSelectedId(newBox.id);
+        setPickerBoxId(newBox.id);
       }
       setDrawing(null);
     }
@@ -345,6 +376,25 @@ const FullImagePage: React.FC = () => {
   const totalModel = useMemo(() => boxes.filter((b) => b.source === 'model').length, [boxes]);
   const totalUser = useMemo(() => boxes.filter((b) => b.source === 'user').length, [boxes]);
   const zoomPercent = useMemo(() => Math.round(zoom * 100), [zoom]);
+  const pickerBox = useMemo(() => boxes.find((b) => b.id === pickerBoxId) || null, [boxes, pickerBoxId]);
+  const pickerSuggestions = useMemo(() => {
+    if (!pickerBox || classes.length === 0) return [];
+    const query = (pickerBox.class_name || '').trim().toLowerCase();
+    const filtered = query ? classes.filter((cls) => cls.toLowerCase().includes(query)) : classes;
+    const base = filtered.length > 0 ? filtered : classes;
+    return base.slice(0, 5);
+  }, [pickerBox, classes]);
+  const pickerPosition = useMemo(() => {
+    if (!pickerBox || overlaySize.width === 0 || overlaySize.height === 0) return null;
+    const anchorX = pickerBox.x2 * overlaySize.width;
+    const anchorY = pickerBox.y1 * overlaySize.height;
+    const maxLeft = Math.max(overlaySize.width - 200, 8);
+    const maxTop = Math.max(overlaySize.height - 160, 8);
+    return {
+      left: Math.min(Math.max(anchorX + 8, 8), maxLeft),
+      top: Math.min(Math.max(anchorY - 8, 8), maxTop),
+    };
+  }, [pickerBox, overlaySize]);
 
   const updateLabel = useCallback(
     (id: string, newText: string) => {
@@ -371,6 +421,7 @@ const FullImagePage: React.FC = () => {
       if (removed) {
         setActiveIds((prev) => prev.filter((x) => x !== id));
         setSelectedId((cur) => (cur === id ? null : cur));
+        setPickerBoxId((cur) => (cur === id ? null : cur));
       }
     },
     [pushHistory]
@@ -484,6 +535,24 @@ const FullImagePage: React.FC = () => {
                   })()
                 )}
               </svg>
+              {pickerBox && pickerSuggestions.length > 0 && pickerPosition && (
+                <div className="bbox-suggestions" style={{ left: pickerPosition.left, top: pickerPosition.top }}>
+                  {pickerSuggestions.map((cls) => (
+                    <button
+                      key={cls}
+                      type="button"
+                      className="bbox-suggestion"
+                      onMouseDown={(evt) => {
+                        evt.preventDefault();
+                        updateLabel(pickerBox.id, cls);
+                        setPickerBoxId(null);
+                      }}
+                    >
+                      {cls}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <button
@@ -518,6 +587,15 @@ const FullImagePage: React.FC = () => {
             <strong>{zoomPercent}%</strong> zoom
           </p>
           <p className="zoom-hint">Segure Shift e use o scroll para aplicar zoom. Clique com o botão do meio para arrastar. Use Ctrl+Z para desfazer.</p>
+          {classesLoading && (
+            <div className="status-banner processing" style={{ marginTop: '0.5rem' }}>
+              <span className="loader" />
+              <span>Carregando lista de classes…</span>
+            </div>
+          )}
+          {classesError && (
+            <div className="status-banner error" style={{ marginTop: '0.5rem' }}>{classesError}</div>
+          )}
         </div>
 
         {/* Editable list */}
@@ -532,6 +610,12 @@ const FullImagePage: React.FC = () => {
                   className="anno-list-input"
                   value={b.class_name || ''}
                   onChange={(e) => updateLabel(b.id, e.target.value)}
+                  onFocus={() => setPickerBoxId(b.id)}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setPickerBoxId((cur) => (cur === b.id ? null : cur));
+                    }, 150);
+                  }}
                 />
                 <div className="anno-actions">
                   <button
@@ -542,7 +626,13 @@ const FullImagePage: React.FC = () => {
                   >
                     {activeIds.includes(b.id) ? 'Ocultar' : 'Destacar'}
                   </button>
-                  <button className="anno-action" onClick={() => setSelectedId(b.id)}>
+                  <button
+                    className="anno-action"
+                    onClick={() => {
+                      setSelectedId(b.id);
+                      setPickerBoxId(b.id);
+                    }}
+                  >
                     Selecionar
                   </button>
                   <button className="anno-action danger" onClick={() => deleteBox(b.id)}>

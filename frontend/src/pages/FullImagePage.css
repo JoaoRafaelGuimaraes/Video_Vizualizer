@@ -266,7 +266,10 @@
   padding: 8px 10px;
   border-radius: 8px;
 }
-.anno-actions { display: flex; gap: 0.5rem; }
+.anno-actions {
+  display: flex;
+  gap: 0.5rem;
+}
 .anno-action {
   background: rgba(100, 108, 255, 0.15);
   color: #cdd1ff;
@@ -282,6 +285,39 @@
   border-color: rgba(231,76,60,0.35);
 }
 .anno-action.danger:hover { background: rgba(231,76,60,0.25); }
+
+.bbox-suggestions {
+  position: absolute;
+  min-width: 160px;
+  max-width: 200px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(100, 108, 255, 0.35);
+  border-radius: 10px;
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.bbox-suggestion {
+  background: rgba(100, 108, 255, 0.2);
+  color: #edf0ff;
+  border: 1px solid rgba(100, 108, 255, 0.4);
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.bbox-suggestion:hover {
+  background: rgba(100, 108, 255, 0.35);
+  transform: translateY(-1px);
+}
 
 /* Reuse status banners from FullVideoPage */
 .status-banner {
