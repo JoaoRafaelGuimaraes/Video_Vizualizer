@@ -342,6 +342,12 @@
   border: 1px solid rgba(231, 76, 60, 0.4);
 }
 
+.status-banner.success {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.4);
+}
+
 .loader {
   width: 18px;
   height: 18px;

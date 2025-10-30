@@ -86,9 +86,9 @@ def transform_into_frames(video_path, output_dir, frame_rate=10): #A cada 10 fra
         for t in range(0, int(duration), frame_rate):
             frame = clip.get_frame(t)
             if t // 3 == 0: #pega a camera direita
-                frame = int(frame[:, frame.shape[1]//2:])
+                frame = frame[:, int(frame.shape[1]//2):]
             else: #pega a camera esquerda
-                frame = int(frame[:, :frame.shape[1]//2])
+                frame = frame[:, :int(frame.shape[1]//2)]
 
             frame_filename = os.path.join(output_dir, f"frame_{t:04d}.jpg")
             img = Image.fromarray(frame)

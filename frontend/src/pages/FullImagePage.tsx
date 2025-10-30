@@ -47,6 +47,9 @@ const FullImagePage: React.FC = () => {
   const [classes, setClasses] = useState<string[]>([]);
   const [classesError, setClassesError] = useState<string | null>(null);
   const [classesLoading, setClassesLoading] = useState(false);
+  const [savingMask, setSavingMask] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [panning, setPanning] = useState<null | { startMouse: { x: number; y: number }; startPan: { x: number; y: number } }>(
     null
   );
@@ -120,6 +123,28 @@ const FullImagePage: React.FC = () => {
     setZoom(1);
     setPanning(null);
   }, []);
+
+  const handleSaveMask = useCallback(async () => {
+    if (!videoName || !frame) return;
+    setSaveError(null);
+    setSaveSuccess(false);
+    setSavingMask(true);
+    try {
+      const detections = boxes.map((b) => ({
+        bbox: [b.x1, b.y1, b.x2, b.y2],
+        class_id: b.class_id ?? 0,
+        class_name: b.class_name,
+      }));
+      await videoAPI.saveMask(videoName, frame, detections);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      console.error('Erro ao salvar máscara:', err);
+      setSaveError(err?.message || 'Erro ao salvar máscara');
+    } finally {
+      setSavingMask(false);
+    }
+  }, [videoName, frame, boxes]);
 
   const handleAnalyse = async () => {
     setAnalysisError(null);
@@ -201,6 +226,34 @@ const FullImagePage: React.FC = () => {
     };
     fetchClasses();
   }, []);
+
+  useEffect(() => {
+    const fetchMask = async () => {
+      if (!videoName || !frame) return;
+      try {
+        const data = await videoAPI.getMask(videoName, frame);
+        if (data.status === 'ok' && data.result.detections) {
+          const maskBoxes: Box[] = data.result.detections.map((det, idx) => {
+            const [x1, y1, x2, y2] = det.bbox;
+            return {
+              id: `mask-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+              x1,
+              y1,
+              x2,
+              y2,
+              class_name: det.class_name,
+              class_id: det.class_id,
+              source: 'user' as const,
+            };
+          });
+          setBoxes(maskBoxes);
+        }
+      } catch (err: any) {
+        console.warn('Nenhuma máscara salva encontrada ou erro ao carregar:', err);
+      }
+    };
+    fetchMask();
+  }, [videoName, frame]);
 
   useEffect(() => {
     boxesRef.current = boxes;
@@ -569,9 +622,12 @@ const FullImagePage: React.FC = () => {
 
       <div className="labeling-container">
         <h2>Análise YOLO</h2>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <button className="view-full-button" disabled={analysing} onClick={handleAnalyse}>
             🔍 Analisar com YOLO
+          </button>
+          <button className="view-full-button" disabled={savingMask} onClick={handleSaveMask}>
+            💾 Salvar Máscara
           </button>
           {analysing && (
             <div className="status-banner processing">
@@ -579,7 +635,15 @@ const FullImagePage: React.FC = () => {
               <span>Analisando imagem… aguarde</span>
             </div>
           )}
+          {savingMask && (
+            <div className="status-banner processing">
+              <span className="loader" />
+              <span>Salvando máscara… aguarde</span>
+            </div>
+          )}
+          {saveSuccess && <div className="status-banner success">Máscara salva com sucesso!</div>}
           {analysisError && <div className="status-banner error">{analysisError}</div>}
+          {saveError && <div className="status-banner error">{saveError}</div>}
         </div>
         <div className="detections-summary">
           <p>

@@ -1,8 +1,8 @@
-from flask import Flask, render_template, send_from_directory, Response
+from flask import Flask, render_template, request, send_from_directory, Response
 import os
 from video_func import get_minivideo, transform_into_frames
 from flask_cors import CORS
-from model_analysis import load_model, infer_image
+from model_analysis import load_model, infer_image, read_yolo_mask, save_yolo_mask
 import mimetypes
 import ast
 
@@ -100,6 +100,22 @@ def serve_dataset_image(video, image_filename):
     response.headers['Content-Type'] = 'image/jpeg'
     return response
 
+@app.route('/api/dataset/masks/<video>/<image_filename>/<action>', methods=['GET', 'POST'])
+def handle_dataset_mask(video, image_filename, action):
+    masks_dir = os.path.join(DATA_SET_DIR, video, 'masks')
+    file_path = os.path.join(masks_dir, image_filename.split('.')[0] + '.txt')
+    if action == 'read':
+        if not os.path.exists(file_path):
+            return {"error": "Máscara não encontrada"}, 404
+        result = read_yolo_mask(file_path)
+        return {'status': 'ok', 'result': result}
+    elif action == 'save':
+        data = request.get_json()
+        if not data:
+            return {"error": "Dados inválidos"}, 400
+        save_yolo_mask(data, file_path)
+        return {"status": "ok", "message": "Máscara salva com sucesso"}
+
 @app.route('/api/dataset/transform_video/<video_filename>')
 def transform_video_endpoint(video_filename):
     video_path = os.path.join(VIDEO_DIR, video_filename)
@@ -186,6 +202,10 @@ def get_classes():
     except Exception as exc:
         print('Erro ao carregar classes:', exc)
         return {"status": "error", "error": str(exc)}, 500
+
+
+
+
 
 if __name__ == '__main__':
     app.run(debug = True,host='0.0.0.0', port=5000)

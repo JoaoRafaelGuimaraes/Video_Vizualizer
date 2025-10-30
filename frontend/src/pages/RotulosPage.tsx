@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { videoAPI } from '../services/api';
 import { Link } from 'react-router-dom';
+import FrameWithMask from '../components/FrameWithMask';
 import './RotulosPage.css';
 
 const RotulosPage: React.FC = () => {
@@ -53,10 +54,11 @@ const RotulosPage: React.FC = () => {
           <h2>Frames de {selectedDataset}</h2>
           <div className="carousel-container">
             {frames.map((frame) => (
-              <Link key={frame} to={`/rotulos/${selectedDataset}/${frame}`}>
-                <img
-                  src={videoAPI.getDatasetImageUrl(`/api/dataset/images/${selectedDataset}/${frame}`)}
-                  alt={frame}
+              <Link key={frame} to={`/rotulos/${selectedDataset}/${frame}`} className="frame-link">
+                <FrameWithMask
+                  videoName={selectedDataset}
+                  frameName={frame}
+                  imageUrl={videoAPI.getDatasetImageUrl(`/api/dataset/images/${selectedDataset}/${frame}`)}
                   className="carousel-image"
                 />
               </Link>

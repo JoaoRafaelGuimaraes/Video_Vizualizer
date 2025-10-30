@@ -4,3 +4,5 @@ sync.sh
 start-tmux.sh
 .env
 DATASET/
+__pycache__/
+backend/__pycache__/

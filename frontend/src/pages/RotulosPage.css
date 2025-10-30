@@ -30,4 +30,14 @@
   height: auto;
   border-radius: 8px;
   cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.frames-carousel .frame-link {
+  display: inline-block;
+  text-decoration: none;
+}
+
+.frames-carousel .frame-link:hover .carousel-image {
+  transform: scale(1.05);
 }

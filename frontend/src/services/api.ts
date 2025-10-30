@@ -77,4 +77,42 @@ export const videoAPI = {
     }
     return response.json() as Promise<{ status: string; frames: string[] }>
   },
+
+  async getMask(videoName: string, imageFilename: string) {
+    const response = await fetch(
+      `${API_BASE_URL}/api/dataset/masks/${encodeURIComponent(videoName)}/${encodeURIComponent(imageFilename)}/read`
+    )
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { status: 'not_found', result: { detections: [] } }
+      }
+      throw new Error('Erro ao buscar máscara')
+    }
+    return response.json() as Promise<{
+      status: string
+      result: {
+        detections: Array<{
+          bbox: [number, number, number, number]
+          class_id: number
+          class_name: string
+        }>
+        mask_path?: string
+      }
+    }>
+  },
+
+  async saveMask(videoName: string, imageFilename: string, detections: any[]) {
+    const response = await fetch(
+      `${API_BASE_URL}/api/dataset/masks/${encodeURIComponent(videoName)}/${encodeURIComponent(imageFilename)}/save`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detections }),
+      }
+    )
+    if (!response.ok) {
+      throw new Error('Erro ao salvar máscara')
+    }
+    return response.json() as Promise<{ status: string; message: string }>
+  },
 }
