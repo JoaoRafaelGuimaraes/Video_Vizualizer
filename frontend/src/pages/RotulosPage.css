@@ -41,3 +41,9 @@
 .frames-carousel .frame-link:hover .carousel-image {
   transform: scale(1.05);
 }
+
+.frames-count {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}

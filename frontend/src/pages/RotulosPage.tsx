@@ -8,6 +8,7 @@ const RotulosPage: React.FC = () => {
   const [datasets, setDatasets] = useState<string[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<string | null>(null);
   const [frames, setFrames] = useState<string[]>([]);
+  const [isLoadingFrames, setIsLoadingFrames] = useState(false);
 
   useEffect(() => {
     const fetchDatasets = async () => {
@@ -22,12 +23,16 @@ const RotulosPage: React.FC = () => {
   }, []);
 
   const handleDatasetClick = async (dataset: string) => {
+    setIsLoadingFrames(true);
+    setFrames([]);
+    setSelectedDataset(dataset);
     try {
       const data = await videoAPI.getDatasetVideoFrames(dataset);
       setFrames(data.frames || []);
-      setSelectedDataset(dataset);
     } catch (error) {
       console.error('Error fetching frames:', error);
+    } finally {
+      setIsLoadingFrames(false);
     }
   };
 
@@ -52,18 +57,25 @@ const RotulosPage: React.FC = () => {
       {selectedDataset && (
         <div className="frames-carousel">
           <h2>Frames de {selectedDataset}</h2>
-          <div className="carousel-container">
-            {frames.map((frame) => (
-              <Link key={frame} to={`/rotulos/${selectedDataset}/${frame}`} className="frame-link">
-                <FrameWithMask
-                  videoName={selectedDataset}
-                  frameName={frame}
-                  imageUrl={videoAPI.getDatasetImageUrl(`/api/dataset/images/${selectedDataset}/${frame}`)}
-                  className="carousel-image"
-                />
-              </Link>
-            ))}
-          </div>
+          {isLoadingFrames ? (
+            <p>Carregando frames...</p>
+          ) : (
+            <>
+              <p className="frames-count">{frames.length} frames encontrados</p>
+              <div className="carousel-container">
+                {frames.map((frame) => (
+                  <Link key={frame} to={`/rotulos/${selectedDataset}/${frame}`} className="frame-link">
+                    <FrameWithMask
+                      videoName={selectedDataset}
+                      frameName={frame}
+                      imageUrl={videoAPI.getDatasetImageUrl(`/api/dataset/images/${encodeURIComponent(selectedDataset)}/${encodeURIComponent(frame)}`)}
+                      className="carousel-image"
+                    />
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

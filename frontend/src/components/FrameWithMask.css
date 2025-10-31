@@ -10,3 +10,17 @@ canvas.carousel-image {
 canvas.carousel-image:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+
+.frame-placeholder {
+  display: inline-block;
+  border-radius: 8px;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
