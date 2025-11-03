@@ -1,5 +1,5 @@
 import { useVideos } from '../context/VideosContext'
-import VideoCarousel from '../components/VideoCarousel'
+import VideoGrid from '../components/VideoGrid'
 import './HomePage.css'
 
 function HomePage() {
@@ -38,13 +38,17 @@ function HomePage() {
 
   return (
     <div className="home-container">
-      <h1>Galeria de Vídeos</h1>
+      <div className="header-section">
+        <h1>Galeria de Vídeos</h1>
+        <div className="video-count">
+          {videos.length} vídeo{videos.length !== 1 ? 's' : ''} encontrado{videos.length !== 1 ? 's' : ''}
+        </div>
+        <button className="reload-button" onClick={refetch}>
+          🔄 Recarregar
+        </button>
+      </div>
       
-      <VideoCarousel videos={videos} />
-
-      <button className="reload-button" onClick={refetch}>
-        🔄 Recarregar
-      </button>
+      <VideoGrid videos={videos} />
     </div>
   )
 }

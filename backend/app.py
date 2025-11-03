@@ -5,6 +5,7 @@ from flask_cors import CORS
 from model_analysis import load_model, infer_image, read_yolo_mask, save_yolo_mask
 import mimetypes
 import ast
+from thumbnail_generator import generate_video_thumbnail_safe, create_placeholder_thumbnail
 
 app = Flask(__name__)
 CORS(app)
@@ -73,6 +74,58 @@ def serve_miniature_video(filename):
     response.headers['Content-Type'] = mime_type or 'video/mp4'
     response.headers['Accept-Ranges'] = 'bytes'
     return response
+
+@app.route('/api/videos/thumbnail/<video_filename>')
+def generate_thumbnail(video_filename):
+    """Gera thumbnail dinâmico do primeiro frame do vídeo"""
+    try:
+        # Primeiro, tentar buscar thumbnail existente
+        miniature_dir = os.path.join(VIDEO_DIR, 'miniature')
+        thumbnail_name = video_filename.replace('.mp4', '.jpg')
+        thumbnail_path = os.path.join(miniature_dir, thumbnail_name)
+        
+        # Se thumbnail existe, retornar ele
+        if os.path.exists(thumbnail_path):
+            return send_from_directory(miniature_dir, thumbnail_name)
+        
+        # Se não existe, gerar do vídeo original ou miniatura
+        video_path_mini = os.path.join(miniature_dir, video_filename)
+        video_path_full = os.path.join(VIDEO_DIR, video_filename)
+        
+        # Priorizar vídeo miniatura (menor, mais rápido)
+        if os.path.exists(video_path_mini):
+            thumbnail_bytes = generate_video_thumbnail_safe(video_path_mini)
+        elif os.path.exists(video_path_full):
+            thumbnail_bytes = generate_video_thumbnail_safe(video_path_full)
+        else:
+            return {"error": "Vídeo não encontrado"}, 404
+            
+        # Se falhou em gerar thumbnail, usar placeholder
+        if thumbnail_bytes is None:
+            print(f"Gerando placeholder para {video_filename}")
+            thumbnail_bytes = create_placeholder_thumbnail()
+            
+        if thumbnail_bytes is None:
+            return {"error": "Erro ao gerar thumbnail"}, 500
+            
+        # Salvar thumbnail para uso futuro
+        os.makedirs(miniature_dir, exist_ok=True)
+        with open(thumbnail_path, 'wb') as f:
+            f.write(thumbnail_bytes)
+        
+        # Retornar thumbnail
+        return Response(
+            thumbnail_bytes,
+            mimetype='image/jpeg',
+            headers={
+                'Cache-Control': 'public, max-age=86400',  # Cache por 24h
+                'Content-Type': 'image/jpeg'
+            }
+        )
+        
+    except Exception as e:
+        print(f"Erro ao processar thumbnail para {video_filename}: {e}")
+        return {"error": "Erro interno do servidor"}, 500
 
 @app.route('/api/videos/<filename>')
 def serve_full_video(filename):
