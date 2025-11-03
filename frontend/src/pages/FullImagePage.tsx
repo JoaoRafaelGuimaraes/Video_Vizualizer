@@ -4,7 +4,7 @@ import { API_BASE_URL, videoAPI } from '../services/api';
 import './FullImagePage.css';
 
 interface Detection {
-  bbox: [number, number, number, number]; // normalized [x1, y1, x2, y2]
+  bbox: [number, number, number, number]; // [x1, y1, x2, y2] - YOLO: normalized 0-1, Gemini: normalized 0-1000
   confidence: number;
   class_id: number;
   class_name: string;
@@ -194,50 +194,91 @@ const FullImagePage: React.FC = () => {
     }
   };
 
-  const handleAnalyseGemini = async () => {
-    setGeminiError(null);
-    setAnalysingGemini(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}/gemini`
-      );
-      if (!response.ok) {
-        throw new Error('Erro ao analisar imagem com Gemini');
-      }
-      const data = await response.json();
-      if (data.status !== 'ok') {
-        throw new Error(data.error || 'Falha na análise Gemini');
-      }
-      const result: AnalysisResult = data.result;
-      // map detections to Box (normalized values already)
-      const geminiBoxes: Box[] = (result.detections || []).map((det: Detection, idx: number) => {
-        const [x1, y1, x2, y2] = det.bbox;
-        return {
-          id: `gemini-${idx}-${Math.random().toString(36).slice(2, 8)}`,
-          x1,
-          y1,
-          x2,
-          y2,
-          class_name: det.class_name,
-          class_id: det.class_id,
-          confidence: det.confidence,
-          source: 'model',
-        };
-      });
-
-      // Remove previous model boxes and append new ones, keep user-created
-      setBoxes((prev) => {
-        pushHistory(prev);
-        const userOnly = prev.filter((b) => b.source !== 'model');
-        return [...userOnly, ...geminiBoxes];
-      });
-    } catch (err: any) {
-      console.error('Erro ao analisar imagem com Gemini:', err);
-      setGeminiError(err?.message || 'Erro ao analisar imagem com Gemini');
-    } finally {
-      setAnalysingGemini(false);
+const handleAnalyseGemini = async () => {
+  setGeminiError(null);
+  setAnalysingGemini(true);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}/gemini`
+    );
+    if (!response.ok) {
+      throw new Error('Erro ao analisar imagem com Gemini');
     }
-  };
+    const data = await response.json();
+    if (data.status !== 'ok') {
+      throw new Error(data.error || 'Falha na análise Gemini');
+    }
+    const result: AnalysisResult = data.result;
+
+    const img_width = imgRef.current?.naturalWidth || 1;
+    const img_height = imgRef.current?.naturalHeight || 1;
+
+    console.log('Imagem dimensões:', img_width, img_height);
+    console.log('Detecções Gemini brutas:', result.detections);
+
+    const geminiBoxes: Box[] = (result.detections || []).map((det: Detection, idx: number) => {
+      const [x1_1000, y1_1000, x2_1000, y2_1000] = det.bbox;
+
+      // Log das coordenadas originais 0-1000
+      console.log(`BBox bruta #${idx}: x1=${x1_1000}, y1=${y1_1000}, x2=${x2_1000}, y2=${y2_1000}`);
+
+      // Converte para normalizado 0-1
+      let x1 = x1_1000 / 1000;
+      let y1 = y1_1000 / 1000;
+      let x2 = x2_1000 / 1000;
+      let y2 = y2_1000 / 1000;
+
+      // Detectar se as bounding boxes parecem "deitadas"
+      // Exemplo simples de verificação: largura << altura indica provável box "em pé"
+      const width = Math.abs(x2 - x1);
+      const height = Math.abs(y2 - y1);
+      console.log(`BBox #${idx} largura=${width.toFixed(3)}, altura=${height.toFixed(3)}`);
+
+      // Se largura for maior que altura ao extremo, tentar inverter eixos (trocar x <-> y)
+      if (width > height * 2) {
+        console.log(`BBox #${idx} parece deitada. Tentando inverter coordenadas.`);
+        // Troca eixo X e Y para corrigir orientação
+        const temp_x1 = y1;
+        const temp_x2 = y2;
+        y1 = x1;
+        y2 = x2;
+        x1 = temp_x1;
+        x2 = temp_x2;
+      }
+
+      const normX1 = Math.min(x1, x2);
+      const normY1 = Math.min(y1, y2);
+      const normX2 = Math.max(x1, x2);
+      const normY2 = Math.max(y1, y2);
+
+      console.log(`BBox #${idx} normalizada corrigida: x1=${normX1.toFixed(3)}, y1=${normY1.toFixed(3)}, x2=${normX2.toFixed(3)}, y2=${normY2.toFixed(3)}`);
+
+      return {
+        id: `gemini-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+        x1: normX1,
+        y1: normY1,
+        x2: normX2,
+        y2: normY2,
+        class_name: det.class_name,
+        class_id: det.class_id,
+        confidence: det.confidence,
+        source: 'model',
+      };
+    });
+
+    setBoxes((prev) => {
+      pushHistory(prev);
+      const userOnly = prev.filter((b) => b.source !== 'model');
+      return [...userOnly, ...geminiBoxes];
+    });
+  } catch (err: any) {
+    console.error('Erro ao analisar imagem com Gemini:', err);
+    setGeminiError(err?.message || 'Erro ao analisar imagem com Gemini');
+  } finally {
+    setAnalysingGemini(false);
+  }
+};
+
 
   // overlay sizing
   useEffect(() => {

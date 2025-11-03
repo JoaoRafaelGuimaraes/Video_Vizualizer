@@ -7,3 +7,4 @@ flask-cors
 pillow
 ultralytics
 opencv-python
+python-dotenv
