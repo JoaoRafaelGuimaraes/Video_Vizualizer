@@ -36,6 +36,8 @@ const FullImagePage: React.FC = () => {
   const navigate = useNavigate();
   const [analysing, setAnalysing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysingGemini, setAnalysingGemini] = useState(false);
+  const [geminiError, setGeminiError] = useState<string | null>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [zoom, setZoom] = useState(1);
   const minZoom = 0.5;
@@ -152,7 +154,7 @@ const FullImagePage: React.FC = () => {
     // keep any user-added boxes; we'll merge model ones by replacing previous model results
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}`
+        `${API_BASE_URL}/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}/yolo`
       );
       if (!response.ok) {
         throw new Error('Erro ao analisar imagem');
@@ -166,7 +168,7 @@ const FullImagePage: React.FC = () => {
       const modelBoxes: Box[] = (result.detections || []).map((det: Detection, idx: number) => {
         const [x1, y1, x2, y2] = det.bbox;
         return {
-          id: `model-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+          id: `yolo-${idx}-${Math.random().toString(36).slice(2, 8)}`,
           x1,
           y1,
           x2,
@@ -189,6 +191,51 @@ const FullImagePage: React.FC = () => {
       setAnalysisError(err?.message || 'Erro ao analisar imagem');
     } finally {
       setAnalysing(false);
+    }
+  };
+
+  const handleAnalyseGemini = async () => {
+    setGeminiError(null);
+    setAnalysingGemini(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/analyse_image/${encodeURIComponent(videoName)}/${encodeURIComponent(frame)}/gemini`
+      );
+      if (!response.ok) {
+        throw new Error('Erro ao analisar imagem com Gemini');
+      }
+      const data = await response.json();
+      if (data.status !== 'ok') {
+        throw new Error(data.error || 'Falha na análise Gemini');
+      }
+      const result: AnalysisResult = data.result;
+      // map detections to Box (normalized values already)
+      const geminiBoxes: Box[] = (result.detections || []).map((det: Detection, idx: number) => {
+        const [x1, y1, x2, y2] = det.bbox;
+        return {
+          id: `gemini-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+          x1,
+          y1,
+          x2,
+          y2,
+          class_name: det.class_name,
+          class_id: det.class_id,
+          confidence: det.confidence,
+          source: 'model',
+        };
+      });
+
+      // Remove previous model boxes and append new ones, keep user-created
+      setBoxes((prev) => {
+        pushHistory(prev);
+        const userOnly = prev.filter((b) => b.source !== 'model');
+        return [...userOnly, ...geminiBoxes];
+      });
+    } catch (err: any) {
+      console.error('Erro ao analisar imagem com Gemini:', err);
+      setGeminiError(err?.message || 'Erro ao analisar imagem com Gemini');
+    } finally {
+      setAnalysingGemini(false);
     }
   };
 
@@ -621,10 +668,13 @@ const FullImagePage: React.FC = () => {
       </div>
 
       <div className="labeling-container">
-        <h2>Análise YOLO</h2>
+        <h2>Análise de Imagem</h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
-          <button className="view-full-button" disabled={analysing} onClick={handleAnalyse}>
+          <button className="view-full-button" disabled={analysing || analysingGemini} onClick={handleAnalyse}>
             🔍 Analisar com YOLO
+          </button>
+          <button className="view-full-button" disabled={analysing || analysingGemini} onClick={handleAnalyseGemini}>
+            🧠 Analisar com Gemini AI
           </button>
           <button className="view-full-button" disabled={savingMask} onClick={handleSaveMask}>
             💾 Salvar Máscara
@@ -632,7 +682,13 @@ const FullImagePage: React.FC = () => {
           {analysing && (
             <div className="status-banner processing">
               <span className="loader" />
-              <span>Analisando imagem… aguarde</span>
+              <span>Analisando com YOLO… aguarde</span>
+            </div>
+          )}
+          {analysingGemini && (
+            <div className="status-banner processing">
+              <span className="loader" />
+              <span>Analisando com Gemini AI… aguarde</span>
             </div>
           )}
           {savingMask && (
@@ -643,6 +699,7 @@ const FullImagePage: React.FC = () => {
           )}
           {saveSuccess && <div className="status-banner success">Máscara salva com sucesso!</div>}
           {analysisError && <div className="status-banner error">{analysisError}</div>}
+          {geminiError && <div className="status-banner error">{geminiError}</div>}
           {saveError && <div className="status-banner error">{saveError}</div>}
         </div>
         <div className="detections-summary">

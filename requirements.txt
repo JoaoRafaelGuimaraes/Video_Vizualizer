@@ -2,3 +2,8 @@ Flask==2.3.3
 moviepy==1.0.3
 numpy>=1.21.0,<1.25.0
 wheel
+google-genai
+flask-cors
+pillow
+ultralytics
+opencv-python

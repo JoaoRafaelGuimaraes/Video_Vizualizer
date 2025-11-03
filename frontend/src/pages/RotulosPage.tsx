@@ -28,7 +28,20 @@ const RotulosPage: React.FC = () => {
     setSelectedDataset(dataset);
     try {
       const data = await videoAPI.getDatasetVideoFrames(dataset);
-      setFrames(data.frames || []);
+      // Ordenar frames por id numérico extraído do nome (ex: frame_0123.jpg -> 123)
+      const framesArr: string[] = data.frames || [];
+      const sorted = framesArr.slice().sort((a, b) => {
+        const re = /frame_0*(\d+)\.jpg$/i;
+        const ma = a.match(re);
+        const mb = b.match(re);
+        const na = ma ? parseInt(ma[1], 10) : NaN;
+        const nb = mb ? parseInt(mb[1], 10) : NaN;
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        if (!isNaN(na)) return -1;
+        if (!isNaN(nb)) return 1;
+        return a.localeCompare(b);
+      });
+      setFrames(sorted);
     } catch (error) {
       console.error('Error fetching frames:', error);
     } finally {

@@ -48,7 +48,10 @@ function FullVideoPage() {
         <button className="back-button" onClick={() => navigate('/')}>
           ← Voltar para Galeria
         </button>
-        <h1>Vídeo Completo</h1>
+        <div className="video-title-section">
+          <h1>Vídeo Completo</h1>
+          <h2 className="video-filename">{video.full_video_url.split('/').pop() || 'Vídeo'}</h2>
+        </div>
       </div>
 
       <div className="full-video-content">

@@ -3,8 +3,10 @@ import os
 from video_func import get_minivideo, transform_into_frames
 from flask_cors import CORS
 from model_analysis import load_model, infer_image, read_yolo_mask, save_yolo_mask
+from gemini_analyser import analyze_image_gemini
 import mimetypes
 import ast
+import base64
 from thumbnail_generator import generate_video_thumbnail_safe, create_placeholder_thumbnail
 
 app = Flask(__name__)
@@ -188,17 +190,43 @@ def clear_cache():
     video_cache = {}
     return {"status": "ok", "message": "Cache limpo com sucesso"}
 
-@app.route('/api/analyse_image/<filename>/<framename>')
-def analyse_image(filename, framename):
+@app.route('/api/analyse_image/<filename>/<framename>/<modelo>')
+def analyse_image(filename, framename, modelo):
     image_path = os.path.join(DATA_SET_DIR, filename, 'images', framename)
     if not os.path.exists(image_path):
         return {"error": "Imagem não encontrada"}, 404
+    if modelo not in ['yolo', 'gemini']:
+        return {"error": "Modelo inválido"}, 400
+    
+    if modelo == 'yolo':
+        model = load_model()
+        results = infer_image(model, image_path)
+    elif modelo == 'gemini':
+        # Convert image to base64 for Gemini API
+        try:
+            with open(image_path, 'rb') as f:
+                image_bytes = f.read()
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            image_data_url = f"data:image/jpeg;base64,{image_b64}"
+            
+            # Create a mock request object for gemini_analyser
+            class MockRequest:
+                def get_json(self):
+                    return {'image': image_data_url}
+            
+            mock_request = MockRequest()
+            gemini_response = analyze_image_gemini(mock_request)
+            
+            # Extract the JSON data from Flask response
+            if hasattr(gemini_response, 'get_json'):
+                results = gemini_response.get_json()
+            else:
+                results = gemini_response.json if hasattr(gemini_response, 'json') else {}
+                
+        except Exception as e:
+            return {"error": f"Erro na análise Gemini: {str(e)}"}, 500
 
-    model = load_model()
-    results = infer_image(model, image_path)
-    print('Results:', results)
-
-    return {"status": "ok", "result":results}
+    return {"status": "ok", "result": results}
 
 @app.route('/api/dataset/videos')
 def list_dataset_videos():
@@ -256,7 +284,6 @@ def get_classes():
     except Exception as exc:
         print('Erro ao carregar classes:', exc)
         return {"status": "error", "error": str(exc)}, 500
-
 
 
 
