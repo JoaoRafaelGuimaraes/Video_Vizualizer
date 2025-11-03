@@ -98,6 +98,7 @@ def serve_dataset_image(video, image_filename):
         return {"error": "Imagem não encontrada"}, 404
     response = send_from_directory(images_dir, image_filename)
     response.headers['Content-Type'] = 'image/jpeg'
+    response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
 @app.route('/api/dataset/masks/<video>/<image_filename>/<action>', methods=['GET', 'POST'])

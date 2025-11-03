@@ -55,22 +55,27 @@ const RotulosPage: React.FC = () => {
       )}
 
       {selectedDataset && (
-        <div className="frames-carousel">
+        <div className="frames-section">
           <h2>Frames de {selectedDataset}</h2>
           {isLoadingFrames ? (
-            <p>Carregando frames...</p>
+            <div className="loading-frames">
+              <p>Carregando frames...</p>
+              <div className="loading-spinner"></div>
+            </div>
           ) : (
             <>
               <p className="frames-count">{frames.length} frames encontrados</p>
-              <div className="carousel-container">
-                {frames.map((frame) => (
+              <div className="frames-grid">
+                {frames.map((frame, index) => (
                   <Link key={frame} to={`/rotulos/${selectedDataset}/${frame}`} className="frame-link">
                     <FrameWithMask
                       videoName={selectedDataset}
                       frameName={frame}
                       imageUrl={videoAPI.getDatasetImageUrl(`/api/dataset/images/${encodeURIComponent(selectedDataset)}/${encodeURIComponent(frame)}`)}
-                      className="carousel-image"
+                      className="frame-image"
+                      lazy={index > 10} // Carregar os primeiros 10 imediatamente
                     />
+                    <div className="frame-name">{frame}</div>
                   </Link>
                 ))}
               </div>

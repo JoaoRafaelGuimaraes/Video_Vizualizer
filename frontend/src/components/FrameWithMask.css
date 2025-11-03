@@ -1,19 +1,22 @@
 /* Estilos para o componente FrameWithMask */
 canvas.carousel-image {
-  max-width: 100%;
-  height: auto;
+  width: 150px;
+  max-height: 120px;
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 canvas.carousel-image:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: scale(1.05);
 }
 
 .frame-placeholder {
   display: inline-block;
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
 @keyframes loading {
