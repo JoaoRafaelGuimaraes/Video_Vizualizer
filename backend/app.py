@@ -10,6 +10,7 @@ import mimetypes
 import ast
 import base64
 from thumbnail_generator import generate_video_thumbnail_safe, create_placeholder_thumbnail
+from video_processor import VideoProcessor, set_polygon_points
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +30,8 @@ DATA_SET_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'D
 
 video_cache = {}
 
+# Instancia o VideoProcessor uma vez
+video_processor = VideoProcessor(model_path='backend/models/yolov8n.pt')
 
 @app.route('/')
 def home():
@@ -284,7 +287,23 @@ def get_classes():
         return {"status": "error", "error": str(exc)}, 500
 
 
+@app.route('/api/video_stream/<video_filename>')
+def video_stream(video_filename):
+    global video_processor
+    video_path = os.path.join(VIDEO_DIR, video_filename)
+    if not os.path.exists(video_path):
+        return "Video not found", 404
+    
+    return Response(video_processor.generate_frames(video_path),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/api/update_polygon', methods=['POST'])
+def update_polygon():
+    data = request.get_json()
+    points = data.get('polygon_points', [])
+    set_polygon_points(points)
+    return {"status": "ok", "message": "Polígono atualizado."}
 
 
 if __name__ == '__main__':
-    app.run(debug = True,host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)

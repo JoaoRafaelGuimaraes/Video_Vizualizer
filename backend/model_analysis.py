@@ -3,6 +3,8 @@ import torch
 import os
 import cv2
 import ast
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 def load_model(model_name='yolov8n.pt'):
     model_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'models', model_name)
@@ -113,6 +115,17 @@ def get_model_names(classes_file='classes.txt'):
         raw = f.read().strip()
     classes_dict = ast.literal_eval(raw)
     return classes_dict
+
+
+
+def object_in_polygon(object_bbox, polygon_points):
+    x1, y1, x2, y2 = object_bbox
+    center_x = (x1 + x2) / 2
+    center_y = (y1 + y2) / 2
+    point = Point(center_x, center_y)
+    polygon = Polygon(polygon_points)
+
+    return polygon.contains(point)
     
 
 

@@ -5,6 +5,7 @@ import FullVideoPage from './pages/FullVideoPage';
 import RotulosPage from './pages/RotulosPage';
 import FullImagePage from './pages/FullImagePage';
 import LabelImagePage from './pages/LabelImagePage';
+import RealTimeTrackingPage from './pages/RealTimeTrackingPage';
 import Sidebar from './components/Sidebar';
 import './App.css';
 
@@ -21,6 +22,7 @@ function App() {
               <Route path="/rotulos" element={<RotulosPage />} />
               <Route path="/rotulos/:videoName/:frame" element={<FullImagePage />} />
               <Route path="/label/:videoKey/:imageName" element={<LabelImagePage />} />
+              <Route path="/rastreamento" element={<RealTimeTrackingPage />} />
             </Routes>
           </main>
         </div>

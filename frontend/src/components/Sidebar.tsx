@@ -13,6 +13,9 @@ const Sidebar: React.FC = () => {
           <li>
             <Link to="/rotulos">Rótulos</Link>
           </li>
+          <li>
+            <Link to="/rastreamento">Rastreamento em Tempo Real</Link>
+          </li>
         </ul>
       </nav>
     </div>

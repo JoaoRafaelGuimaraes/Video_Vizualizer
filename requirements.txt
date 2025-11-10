@@ -4,6 +4,7 @@ numpy>=1.21.0,<1.25.0
 wheel
 google-genai
 flask-cors
+flask-socketio
 pillow
 ultralytics
 opencv-python
